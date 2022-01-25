@@ -256,25 +256,79 @@ class SyntaxTree(str: String = "") {
             var f = false
             i = brackets.size - 1
 
-            val start = Nodes.indexOf(brackets[i].opBr)
-            val end = Nodes.getItemPositionByName(brackets[i].clBr)
+            var start = Nodes.indexOf(brackets[i].opBr)
+            var end = Nodes.getItemPositionByName(brackets[i].clBr)
 
             if (Nodes[start + 1] is ANode) {
-                groups.add(SimpleGroup(num=groupsNum))
+                groups.add(SimpleGroup(num = groupsNum))
                 groupsNum++
                 f = true
             }
 
-            var j = i +1
+            var j = start + 1
 
-            while (j < end){
-
+            //repeats
+            while (j < end) {
+                if (Nodes[j] is Repeats) {
+                    (Nodes[j] as Repeats).child = Nodes[j - 1]
+                    Nodes.remove(Nodes[j - 1])
+                    end--
+                }
+                j++
             }
 
+            j = start + 1
+            //+
+            while (j < end) {
+                if (Nodes[j] is PlusNode) {
+                    (Nodes[j] as PlusNode).child = Nodes[j - 1]
+                    Nodes.remove(Nodes[j - 1])
+                    end--
+                }
+                j++
+            }
 
+            j = start + 1
+            // concatenate a.b
+            while (j < end) {
+                if (Nodes[j] is CatNode) {
+                    (Nodes[j] as CatNode).left = Nodes[j - 1]
+                    (Nodes[j] as CatNode).right = Nodes[j + 1]
+                    Nodes.remove(Nodes[j - 1])
+                    Nodes.remove(Nodes[j + 1])
+                    end -= 2
+                    j--
+                }
+                j++
+            }
+
+            j = start + 1
+            // concatenate ab
+            while (j < end) {
+                if ((Nodes[j] !is OrNode) and (Nodes[j + 1] !is OrNode) and (Nodes[j + 1] !is CloseBracket)) {
+                    (Nodes[j] as CatNode).left = Nodes[j]
+                    (Nodes[j] as CatNode).right = Nodes[j + 1]
+                    Nodes.remove(Nodes[j + 1])
+                    end--
+                    j--
+                }
+                j++
+            }
+
+            // or
+            j = start + 1
+            while (j < end) {
+                if (Nodes[j] is OrNode) {
+                    (Nodes[j] as OrNode).left = Nodes[j]
+                    (Nodes[j] as OrNode).right = Nodes[j + 1]
+                    Nodes.remove(Nodes[j - 1])
+                    Nodes.remove(Nodes[j + 1])
+                    end -= 2
+                    j--
+                }
+                j++
+            }
         }
-
-
     }
 }
 
