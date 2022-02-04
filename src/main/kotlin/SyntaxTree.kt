@@ -1,6 +1,15 @@
 open class Node() {
+    lateinit var startNode: NFA
+    lateinit var endNode: NFA
+    var c: Char = ' '
 
-    var c: Char = '^'
+    open fun createNFA(
+        start: Boolean = true,
+        end: Boolean = false,
+        nameDigit: MutableList<Int> = mutableListOf(0)
+    ): NFA {
+        return NFA(true, false, nameDigit[0])
+    }
 
     constructor(ch: Char) : this() {
         c = ch
@@ -9,7 +18,9 @@ open class Node() {
     open fun print() = print("Symbols is ${this.c}")
 }
 
-open class UnaryOperator(unaryChild: Node?) : Node() {
+typealias Visitor = (Char) -> Unit
+
+open class UnaryOperator(unaryChild: Node?, ch: Char = ' ') : Node(ch) {
 
     var child = unaryChild
     open fun setUnaryChild(child: Node) {
@@ -17,77 +28,187 @@ open class UnaryOperator(unaryChild: Node?) : Node() {
     }
 }
 
-open class BinaryOperator(leftChild: Node? = null, rightChild: Node? = null) : Node() {
+open class BinaryOperator(leftChild: Node? = null, rightChild: Node? = null, ch: Char = ' ') : Node(ch) {
 
     var left = leftChild
     var right = rightChild
-
-    open fun setLeftChild(leftChild: Node) {
-        left = leftChild
-    }
-
-    open fun setRightChild(rightChild: Node) {
-        right = rightChild
-    }
 }
-
-class ANode(ch: Char) : Node(ch) {}
 
 class BracketsPair(val opBr: OpenBracket, var clBr: CloseBracket?) {
 
-    open fun setCloseBracket(closeBracket: CloseBracket) {
+    fun setCloseBracket(closeBracket: CloseBracket) {
         clBr = closeBracket
     }
 
 }
 
-class OpenBracket() : Node() {}
-class CloseBracket() : Node() {}
+class OpenBracket() : Node('(') {}
+class CloseBracket() : Node(')') {}
 
-class CatNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols) {}
-
-class OrNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols) {}
-
-class PlusNode(symbols: Node? = null) : UnaryOperator(symbols) {}
-
-class Repeats(symbols: Node? = null, low: Int, high: Int = -1) : UnaryOperator(symbols) {
-    val lowBorder = low
-    val highBorder = high
-}
-
-class CaptureGroup(group: Node? = null, num: Int = 0) : UnaryOperator(group) {
-    var groupNumber = num
-
-    fun setCaptureGroupNumber(number: Int) {
-        groupNumber = number
+class ANode(ch: Char) : Node(ch) {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        startNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        endNode = NFA(start, end, nameDigit[0])
+        startNode.transitions.add(c)
+        startNode.NFAchildren.add(endNode)
+        nameDigit[0] = nameDigit[0] + 1
+        return startNode
     }
 }
 
-class SimpleGroup(group: Node? = null, num: Int = 0) : UnaryOperator(group) {
-    var groupNumber = num
-
-    fun setSimpleGroupNumber(number: Int) {
-        groupNumber = number
+class CatNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols, '.') {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        startNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        endNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        startNode.transitions.add('@')
+        startNode.NFAchildren.add(left!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+        if ((left !is SimpleGroup) and (right !is SimpleGroup)) {
+            left!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
+            left!!.endNode.transitions.add('@')
+            right!!.endNode.NFAchildren.add(endNode)
+            right!!.endNode.transitions.add('@')
+        } else if ((left !is SimpleGroup) and (right is SimpleGroup)) {
+            left!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
+            left!!.endNode.transitions.add('@')
+            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (right as SimpleGroup).child!!.endNode.transitions.add('@')
+        } else if ((left is SimpleGroup) and (right !is SimpleGroup)) {
+            (left as SimpleGroup).child!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
+            (left as SimpleGroup).child!!.endNode.transitions.add('@')
+            right!!.endNode.NFAchildren.add(endNode)
+            right!!.endNode.transitions.add('@')
+        } else {
+            (left as SimpleGroup).child!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
+            (left as SimpleGroup).child!!.endNode.transitions.add('@')
+            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (right as SimpleGroup).child!!.endNode.transitions.add('@')
+        }
+        return startNode
     }
 }
 
-class ENode() : Node() {}
+class OrNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols, '|') {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        startNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        endNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        startNode.transitions.add('@')
+        nameDigit[0] = nameDigit[0] + 1
+        startNode.NFAchildren.add(left!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+        startNode.NFAchildren.add(right!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+
+        if ((left !is SimpleGroup) and (right !is SimpleGroup)) {
+            left!!.endNode.NFAchildren.add(endNode)
+            left!!.endNode.transitions.add('@')
+            right!!.endNode.NFAchildren.add(endNode)
+            right!!.endNode.transitions.add('@')
+        } else if ((left !is SimpleGroup) and (right is SimpleGroup)) {
+            left!!.endNode.NFAchildren.add(endNode)
+            left!!.endNode.transitions.add('@')
+            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (right as SimpleGroup).child!!.endNode.transitions.add('@')
+        } else if ((left is SimpleGroup) and (right !is SimpleGroup)) {
+            (left as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (left as SimpleGroup).child!!.endNode.transitions.add('@')
+            right!!.endNode.NFAchildren.add(endNode)
+            right!!.endNode.transitions.add('@')
+        } else {
+            (left as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (left as SimpleGroup).child!!.endNode.transitions.add('@')
+            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (right as SimpleGroup).child!!.endNode.transitions.add('@')
+        }
+        return startNode
+    }
+}
+
+class PlusNode(symbols: Node? = null) : UnaryOperator(symbols, '+') {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        startNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        endNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        startNode.transitions.add('@')
+        nameDigit[0] = nameDigit[0] + 1
+        var plusChild = child
+
+        if (plusChild !is SimpleGroup) {
+            startNode.NFAchildren.add(child!!.createNFA(false, false, nameDigit))
+            nameDigit[0] = nameDigit[0] + 1
+            child!!.endNode.NFAchildren.add(child!!.startNode)
+            child!!.endNode.NFAchildren.add(endNode)
+            child!!.endNode.transitions.add('@')
+        } else {
+            while (plusChild is SimpleGroup) plusChild = plusChild.child
+            startNode.NFAchildren.add(plusChild!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+            nameDigit[0] = nameDigit[0] + 1
+            plusChild.endNode.NFAchildren.add(plusChild.startNode)
+            plusChild.endNode.NFAchildren.add(endNode)
+            plusChild.endNode.transitions.add('@')
+        }
+        return startNode
+    }
+}
+
+class Repeats(symbols: Node? = null, val lowBorder: Int, val highBorder: Int = -1) : UnaryOperator(symbols, 'R') {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        startNode = NFA(start, end, nameDigit[0])
+        startNode.transitions.add('@')
+        nameDigit[0] = nameDigit[0] + 1
+        endNode = NFA(start, end, nameDigit[0])
+        var i = 0
+        var repeatsChild = child
+        var flag = false
+        var lastEndNode = endNode
+        if (highBorder == -1) { //{4,}
+            while (i < lowBorder) { // cat until highBorder
+                if (repeatsChild !is SimpleGroup) {
+                    startNode.NFAchildren.add(child!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+                    nameDigit[0] = nameDigit[0] + 1
+                    child!!.endNode.NFAchildren.add(endNode)
+                    child!!.endNode.transitions.add('@')
+                    lastEndNode = child!!.endNode
+
+                } else {
+                    while (repeatsChild is SimpleGroup) repeatsChild = repeatsChild.child
+                    startNode.NFAchildren.add(
+                        repeatsChild!!.createNFA(
+                            start = false,
+                            end = false,
+                            nameDigit = nameDigit
+                        )
+                    )
+                    nameDigit[0] = nameDigit[0] + 1
+                    repeatsChild.endNode.NFAchildren.add(repeatsChild.startNode)
+                    repeatsChild.endNode.transitions.add('@')
+                }
+                i++
+            }
+            //Clini
+
+        }
+
+        return startNode
+    }
+}
+
+class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {}
+
+class SimpleGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {}
+
+class ENode : Node() {}
 
 class SyntaxTree(str: String = "") {
     var rootNode: Node = Node()
-    private val Nodes = mutableListOf<Node>()
+    private val nodes = mutableListOf<Node>()
     private val groups = mutableListOf<Node>()
-//    private val aNodes = mutableListOf<ANode>()
-//
-//    //private val starNodes = mutableListOf<StarNode>()
-//    private val catNodes = mutableListOf<CatNode>()
-//    private val orNodes = mutableListOf<OrNode>()
-
     private val alphabet = mutableSetOf<Char>()
-
     private val regStr = "($str)"
     private var brackets = mutableListOf<BracketsPair>()
-    //private var closingBrackets = mutableListOf<CloseBracket>()
 
     init {
         println(regStr)
@@ -103,62 +224,42 @@ class SyntaxTree(str: String = "") {
         var i = 0
         while (i < regStr.length) {
             val ch = regStr[i]
-            when {
-                ch == '(' -> Nodes.add(OpenBracket())
-                ch == ')' -> Nodes.add(CloseBracket())
+            when (ch) {
+                '(' -> nodes.add(OpenBracket())
+                ')' -> nodes.add(CloseBracket())
                 // escaping a character
-                ch == '#' -> {
+                '#' -> {
                     if (i + 1 < regStr.length) {
                         i++
                         alphabet.add(regStr[i])
-                        Nodes.add(ANode(regStr[i]))
+                        nodes.add(ANode(regStr[i]))
                     } else throw Exception("Syntax error")
                 }
-
                 // null substring
-                ch == '^' -> Nodes.add(ENode())
-
+                '^' -> nodes.add(ENode())
                 // or
-                ch == '|' -> {
+                '|' -> {
                     if (i + 1 >= regStr.length) throw Exception("Syntax error")
                     if (regStr[i + 1] != '|') {
-                        Nodes.add(OrNode())
+                        nodes.add(OrNode())
                     } else throw Exception("Syntax error")
                 }
-
                 // concatenation
-                ch == '.' -> {
+                '.' -> {
                     if (i + 1 >= regStr.length) throw Exception("Syntax error")
-                    if (regStr[i + 1] != '.') Nodes.add(CatNode())
+                    if (regStr[i + 1] != '.') nodes.add(CatNode())
                     else throw Exception("Syntax error")
                 }
-
                 // positive circuit
-                ch == '+' -> Nodes.add(PlusNode())
+                '+' -> nodes.add(PlusNode())
 
                 // repeat expression in diapason {2,} or {2,987}
-                ch == '{' -> i = checkRepeatExpression(i)
+                '{' -> i = checkRepeatExpression(i)
 
                 // numeric capture group (5:r)
-                // smth6:b
-//                ch.isDigit() -> {
-//                    var capNumber = 0
-//                    while (regStr[i] != ':') {
-//                        if (regStr[i].isDigit()) {
-//                            capNumber *= 10
-//                            capNumber += regStr[i].digitToInt()
-//                            i++
-//                            if (i >= regStr.length) throw Exception("Syntax error")
-//                        } else {
-//                            i++
-//                            if (i >= regStr.length) throw Exception("Syntax error")
-//                        }
-//                    }
-//                    i++
-//                }
-                ch == ':' -> Nodes.add(CaptureGroup())
+                ':' -> nodes.add(CaptureGroup())
                 else -> {
-                    Nodes.add(ANode(ch))
+                    nodes.add(ANode(ch))
                     alphabet.add(ch)
                 }
             }
@@ -168,6 +269,7 @@ class SyntaxTree(str: String = "") {
 
     private fun checkRepeatExpression(k: Int): Int {
         var i = k
+        // {2,}
         if ((i + 4 >= regStr.length) or (regStr[i + 1] == '}')) throw Exception("Syntax error")
         var lowNum = 0
         var highNum = 0
@@ -186,7 +288,7 @@ class SyntaxTree(str: String = "") {
         if (i >= regStr.length) throw Exception("Syntax error")
         // {23,}
         if (regStr[i] == '}') {
-            Nodes.add(Repeats(low = lowNum))
+            nodes.add(Repeats(lowBorder = lowNum))
         } else {
             // {23,53}
             while (regStr[i] != '}') {
@@ -197,7 +299,7 @@ class SyntaxTree(str: String = "") {
                     if (i >= regStr.length) throw Exception("Syntax error")
                 } else throw Exception("Syntax error")
             }
-            if (highNum > lowNum) Nodes.add(Repeats(low = lowNum, high = highNum))
+            if (highNum > lowNum) nodes.add(Repeats(lowBorder = lowNum, highBorder = highNum))
             else throw Exception("Syntax error")
         }
         return i
@@ -214,7 +316,6 @@ class SyntaxTree(str: String = "") {
             ind = regStr.indexOf('(', ind + 1)
             if (ind != -1) {
                 opBr += 1
-                //openBrackets.add(ind)
             } else break
         }
         ind = 0
@@ -222,7 +323,6 @@ class SyntaxTree(str: String = "") {
             ind = regStr.indexOf(')', ind + 1)
             if (ind != -1) {
                 clBr += 1
-                //closingBrackets.add(ind)
             } else break
         }
 
@@ -230,17 +330,18 @@ class SyntaxTree(str: String = "") {
     }
 
     private fun createSyntaxTree() {
+        val captureGroups = mutableListOf<CaptureGroup>()
         nodesScan()
-        val size = Nodes.size
+        val size = nodes.size
         var groupsNum = 0
         var i = 0
 
         // forming brackets groups
         while (i < size) {
-            val node = Nodes[i]
+            val node = nodes[i]
             if (node is OpenBracket) brackets.add(BracketsPair(node, null))
             else if (node is CloseBracket) {
-                var j = size - i
+                var j = brackets.size - 1
                 while (j >= 0) {
                     if (brackets[j].clBr == null) {
                         brackets[j].setCloseBracket(node)
@@ -252,26 +353,43 @@ class SyntaxTree(str: String = "") {
             i++
         }
 
-        while (Nodes.size != 1) {
+        while (nodes.size != 1) {
             var f = false
             i = brackets.size - 1
 
-            var start = Nodes.indexOf(brackets[i].opBr)
-            var end = Nodes.getItemPositionByName(brackets[i].clBr)
-
-            if (Nodes[start + 1] is ANode) {
-                groups.add(SimpleGroup(num = groupsNum))
-                groupsNum++
-                f = true
-            }
-
+            val start = nodes.indexOf(brackets[i].opBr)
+            var end = nodes.getItemPositionByName(brackets[i].clBr)
             var j = start + 1
 
+            //numeric (76:r)
+            while (j < end) {
+                if (nodes[j] is CaptureGroup) {
+                    if ((nodes[j + 1] is CloseBracket) or (nodes[j + 1] is CaptureGroup)) throw Exception("Wrong syntax!")
+                    val k = start + 1
+                    var capNumber = 0
+                    //var i = k
+                    for (i in k until j) {
+                        if (nodes[i].c.isDigit()) {
+                            capNumber *= 10
+                            capNumber += nodes[i].c.digitToInt()
+                        } else throw Exception("Wrong syntax for capture group!")
+                    }
+                    (nodes[j] as CaptureGroup).groupNumber = capNumber
+                    for (i in k until j) {
+                        nodes.removeAt(k)
+                        end--
+                    }
+                    f = true
+                    captureGroups.add(nodes[k] as CaptureGroup)
+                }
+                j++
+            }
+            j = start + 1
             //repeats
             while (j < end) {
-                if (Nodes[j] is Repeats) {
-                    (Nodes[j] as Repeats).child = Nodes[j - 1]
-                    Nodes.remove(Nodes[j - 1])
+                if (nodes[j] is Repeats) {
+                    (nodes[j] as Repeats).child = nodes[j - 1]
+                    nodes.remove(nodes[j - 1])
                     end--
                 }
                 j++
@@ -280,9 +398,9 @@ class SyntaxTree(str: String = "") {
             j = start + 1
             //+
             while (j < end) {
-                if (Nodes[j] is PlusNode) {
-                    (Nodes[j] as PlusNode).child = Nodes[j - 1]
-                    Nodes.remove(Nodes[j - 1])
+                if (nodes[j] is PlusNode) {
+                    (nodes[j] as PlusNode).child = nodes[j - 1]
+                    nodes.remove(nodes[j - 1])
                     end--
                 }
                 j++
@@ -291,11 +409,12 @@ class SyntaxTree(str: String = "") {
             j = start + 1
             // concatenate a.b
             while (j < end) {
-                if (Nodes[j] is CatNode) {
-                    (Nodes[j] as CatNode).left = Nodes[j - 1]
-                    (Nodes[j] as CatNode).right = Nodes[j + 1]
-                    Nodes.remove(Nodes[j - 1])
-                    Nodes.remove(Nodes[j + 1])
+                if (nodes[j] is CatNode) {
+                    if ((nodes[j] as CatNode).left != null) break
+                    (nodes[j] as CatNode).left = nodes[j - 1]
+                    (nodes[j] as CatNode).right = nodes[j + 1]
+                    nodes.remove(nodes[j - 1])
+                    nodes.remove(nodes[j])
                     end -= 2
                     j--
                 }
@@ -305,10 +424,9 @@ class SyntaxTree(str: String = "") {
             j = start + 1
             // concatenate ab
             while (j < end) {
-                if ((Nodes[j] !is OrNode) and (Nodes[j + 1] !is OrNode) and (Nodes[j + 1] !is CloseBracket)) {
-                    (Nodes[j] as CatNode).left = Nodes[j]
-                    (Nodes[j] as CatNode).right = Nodes[j + 1]
-                    Nodes.remove(Nodes[j + 1])
+                if ((nodes[j] !is OrNode) and (nodes[j + 1] !is OrNode) and (nodes[j + 1] !is CloseBracket)) {
+                    nodes.set(j, CatNode(nodes[j], nodes[j + 1]))
+                    nodes.remove(nodes[j + 1])
                     end--
                     j--
                 }
@@ -318,19 +436,92 @@ class SyntaxTree(str: String = "") {
             // or
             j = start + 1
             while (j < end) {
-                if (Nodes[j] is OrNode) {
-                    (Nodes[j] as OrNode).left = Nodes[j]
-                    (Nodes[j] as OrNode).right = Nodes[j + 1]
-                    Nodes.remove(Nodes[j - 1])
-                    Nodes.remove(Nodes[j + 1])
+                if (nodes[j] is OrNode) {
+                    (nodes[j] as OrNode).left = nodes[j - 1]
+                    (nodes[j] as OrNode).right = nodes[j + 1]
+                    nodes.remove(nodes[j - 1])
+                    nodes.remove(nodes[j])
                     end -= 2
                     j--
                 }
                 j++
             }
+
+            if (end - start == 2) {
+                val gr = if (f) {
+                    f = false
+                    val i = captureGroups.size - 1
+                    SimpleGroup(nodes[start + 1], captureGroups[i].groupNumber)
+                } else SimpleGroup(nodes[start + 1], groupsNum++)
+                groups.add(gr)
+                nodes[start] = gr
+                nodes.removeAt(start + 1) //node
+                nodes.removeAt(start + 1) //)
+                brackets.removeLast()
+            }
+        }
+        rootNode = nodes[0]
+    }
+
+    private fun printUnary(nd: Node?, tab: Int): Node? {
+        val space = " ".repeat(tab)
+        when (nd) {
+            is PlusNode -> {
+                println("$space+")
+                return nd.child
+            }
+            is Repeats -> {
+                if (nd.highBorder > 0) println("$space{${nd.lowBorder},${nd.highBorder}}")
+                else println("$space{${nd.lowBorder},}")
+                return nd.child
+            }
+            is ANode -> {
+                println("$space${nd.c}")
+                return null
+            }
+            is ENode -> {
+                println("$space${nd.c}")
+                return null
+            }
+            is SimpleGroup -> {
+                println("$space(group ${nd.groupNumber})")
+                return nd.child
+            }
+            else -> return null
+        }
+    }
+
+    private fun printBinary(nd: Node?, tab: Int): Pair<Node?, Node?> {
+        val space = " ".repeat(tab)
+        return when (nd) {
+            is OrNode -> {
+                println("$space|")
+                Pair(nd.left, nd.right)
+            }
+            is CatNode -> {
+                println("$space.")
+                Pair(nd.left, nd.right)
+            }
+            else -> Pair(null, null)
+        }
+    }
+
+    fun printTree(root: Node?, space: Int) {
+
+        var tab = space + 1
+        var unaryNd: Node? = null
+        var binaryNd: Pair<Node?, Node?> = Pair(null, null)
+        if ((root !is OrNode) and (root !is CatNode)) unaryNd = printUnary(root, tab)
+        else binaryNd = printBinary(root, tab)
+
+        unaryNd?.let { printTree(it, tab) }
+        if (binaryNd.first != null) {
+            printTree(binaryNd.first, tab)
+            printTree(binaryNd.second, tab + 2)
         }
     }
 }
+
 
 fun <T> List<T>.getItemPositionByName(item: T): Int {
     this.forEachIndexed { index, it ->
