@@ -4,5 +4,7 @@ fun main(args: Array<String>) {
     val regularString = readLine()!!
     val tree = SyntaxTree(regularString)
     tree.printTree(tree.rootNode, 1)
+    tree.createNFA()
+    tree.printNFA(node = tree.rootNode, tab = 2)
 
 }

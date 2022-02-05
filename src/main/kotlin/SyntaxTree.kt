@@ -1,6 +1,6 @@
 open class Node() {
-    lateinit var startNode: NFA
-    lateinit var endNode: NFA
+    var startNode = NFA()
+    var endNode = NFA()
     var c: Char = ' '
 
     open fun createNFA(
@@ -8,38 +8,25 @@ open class Node() {
         end: Boolean = false,
         nameDigit: MutableList<Int> = mutableListOf(0)
     ): NFA {
-        return NFA(true, false, nameDigit[0])
+        return NFA(start = true, end = false, nameDigit = nameDigit[0])
     }
 
     constructor(ch: Char) : this() {
         c = ch
     }
-
-    open fun print() = print("Symbols is ${this.c}")
 }
 
-typealias Visitor = (Char) -> Unit
-
-open class UnaryOperator(unaryChild: Node?, ch: Char = ' ') : Node(ch) {
-
-    var child = unaryChild
-    open fun setUnaryChild(child: Node) {
-        this.child = child
-    }
-}
+open class UnaryOperator(var child: Node?, ch: Char = ' ') : Node(ch) {}
 
 open class BinaryOperator(leftChild: Node? = null, rightChild: Node? = null, ch: Char = ' ') : Node(ch) {
-
     var left = leftChild
     var right = rightChild
 }
 
 class BracketsPair(val opBr: OpenBracket, var clBr: CloseBracket?) {
-
     fun setCloseBracket(closeBracket: CloseBracket) {
         clBr = closeBracket
     }
-
 }
 
 class OpenBracket() : Node('(') {}
@@ -49,7 +36,7 @@ class ANode(ch: Char) : Node(ch) {
     override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
         startNode = NFA(start, end, nameDigit[0])
         nameDigit[0] = nameDigit[0] + 1
-        endNode = NFA(start, end, nameDigit[0])
+        endNode = NFA(end, start, nameDigit[0])
         startNode.transitions.add(c)
         startNode.NFAchildren.add(endNode)
         nameDigit[0] = nameDigit[0] + 1
@@ -57,156 +44,26 @@ class ANode(ch: Char) : Node(ch) {
     }
 }
 
-class CatNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols, '.') {
-    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
-        startNode = NFA(start, end, nameDigit[0])
-        nameDigit[0] = nameDigit[0] + 1
-        endNode = NFA(start, end, nameDigit[0])
-        nameDigit[0] = nameDigit[0] + 1
-        startNode.transitions.add('@')
-        startNode.NFAchildren.add(left!!.createNFA(start = false, end = false, nameDigit = nameDigit))
-        if ((left !is SimpleGroup) and (right !is SimpleGroup)) {
-            left!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
-            left!!.endNode.transitions.add('@')
-            right!!.endNode.NFAchildren.add(endNode)
-            right!!.endNode.transitions.add('@')
-        } else if ((left !is SimpleGroup) and (right is SimpleGroup)) {
-            left!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
-            left!!.endNode.transitions.add('@')
-            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
-            (right as SimpleGroup).child!!.endNode.transitions.add('@')
-        } else if ((left is SimpleGroup) and (right !is SimpleGroup)) {
-            (left as SimpleGroup).child!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
-            (left as SimpleGroup).child!!.endNode.transitions.add('@')
-            right!!.endNode.NFAchildren.add(endNode)
-            right!!.endNode.transitions.add('@')
-        } else {
-            (left as SimpleGroup).child!!.endNode.NFAchildren.add(right!!.createNFA(false, false, nameDigit))
-            (left as SimpleGroup).child!!.endNode.transitions.add('@')
-            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
-            (right as SimpleGroup).child!!.endNode.transitions.add('@')
-        }
-        return startNode
-    }
-}
-
-class OrNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols, '|') {
-    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
-        startNode = NFA(start, end, nameDigit[0])
-        nameDigit[0] = nameDigit[0] + 1
-        endNode = NFA(start, end, nameDigit[0])
-        nameDigit[0] = nameDigit[0] + 1
-        startNode.transitions.add('@')
-        nameDigit[0] = nameDigit[0] + 1
-        startNode.NFAchildren.add(left!!.createNFA(start = false, end = false, nameDigit = nameDigit))
-        startNode.NFAchildren.add(right!!.createNFA(start = false, end = false, nameDigit = nameDigit))
-
-        if ((left !is SimpleGroup) and (right !is SimpleGroup)) {
-            left!!.endNode.NFAchildren.add(endNode)
-            left!!.endNode.transitions.add('@')
-            right!!.endNode.NFAchildren.add(endNode)
-            right!!.endNode.transitions.add('@')
-        } else if ((left !is SimpleGroup) and (right is SimpleGroup)) {
-            left!!.endNode.NFAchildren.add(endNode)
-            left!!.endNode.transitions.add('@')
-            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
-            (right as SimpleGroup).child!!.endNode.transitions.add('@')
-        } else if ((left is SimpleGroup) and (right !is SimpleGroup)) {
-            (left as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
-            (left as SimpleGroup).child!!.endNode.transitions.add('@')
-            right!!.endNode.NFAchildren.add(endNode)
-            right!!.endNode.transitions.add('@')
-        } else {
-            (left as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
-            (left as SimpleGroup).child!!.endNode.transitions.add('@')
-            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
-            (right as SimpleGroup).child!!.endNode.transitions.add('@')
-        }
-        return startNode
-    }
-}
-
-class PlusNode(symbols: Node? = null) : UnaryOperator(symbols, '+') {
-    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
-        startNode = NFA(start, end, nameDigit[0])
-        nameDigit[0] = nameDigit[0] + 1
-        endNode = NFA(start, end, nameDigit[0])
-        nameDigit[0] = nameDigit[0] + 1
-        startNode.transitions.add('@')
-        nameDigit[0] = nameDigit[0] + 1
-        var plusChild = child
-
-        if (plusChild !is SimpleGroup) {
-            startNode.NFAchildren.add(child!!.createNFA(false, false, nameDigit))
-            nameDigit[0] = nameDigit[0] + 1
-            child!!.endNode.NFAchildren.add(child!!.startNode)
-            child!!.endNode.NFAchildren.add(endNode)
-            child!!.endNode.transitions.add('@')
-        } else {
-            while (plusChild is SimpleGroup) plusChild = plusChild.child
-            startNode.NFAchildren.add(plusChild!!.createNFA(start = false, end = false, nameDigit = nameDigit))
-            nameDigit[0] = nameDigit[0] + 1
-            plusChild.endNode.NFAchildren.add(plusChild.startNode)
-            plusChild.endNode.NFAchildren.add(endNode)
-            plusChild.endNode.transitions.add('@')
-        }
-        return startNode
-    }
-}
-
-class Repeats(symbols: Node? = null, val lowBorder: Int, val highBorder: Int = -1) : UnaryOperator(symbols, 'R') {
-    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
-        startNode = NFA(start, end, nameDigit[0])
-        startNode.transitions.add('@')
-        nameDigit[0] = nameDigit[0] + 1
-        endNode = NFA(start, end, nameDigit[0])
-        var i = 0
-        var repeatsChild = child
-        var flag = false
-        var lastEndNode = endNode
-        if (highBorder == -1) { //{4,}
-            while (i < lowBorder) { // cat until highBorder
-                if (repeatsChild !is SimpleGroup) {
-                    startNode.NFAchildren.add(child!!.createNFA(start = false, end = false, nameDigit = nameDigit))
-                    nameDigit[0] = nameDigit[0] + 1
-                    child!!.endNode.NFAchildren.add(endNode)
-                    child!!.endNode.transitions.add('@')
-                    lastEndNode = child!!.endNode
-
-                } else {
-                    while (repeatsChild is SimpleGroup) repeatsChild = repeatsChild.child
-                    startNode.NFAchildren.add(
-                        repeatsChild!!.createNFA(
-                            start = false,
-                            end = false,
-                            nameDigit = nameDigit
-                        )
-                    )
-                    nameDigit[0] = nameDigit[0] + 1
-                    repeatsChild.endNode.NFAchildren.add(repeatsChild.startNode)
-                    repeatsChild.endNode.transitions.add('@')
-                }
-                i++
-            }
-            //Clini
-
-        }
-
-        return startNode
-    }
-}
-
 class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {}
 
-class SimpleGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {}
+class SimpleGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        return child!!.createNFA(start, end, nameDigit)
+    }
+}
 
-class ENode : Node() {}
+class ENode : Node() {
+    override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
+        return ANode('^').createNFA(start, end, nameDigit)
+    }
+}
 
 class SyntaxTree(str: String = "") {
     var rootNode: Node = Node()
     private val nodes = mutableListOf<Node>()
     private val groups = mutableListOf<Node>()
     private val alphabet = mutableSetOf<Char>()
+    private val autoNode = mutableSetOf<String>()
     private val regStr = "($str)"
     private var brackets = mutableListOf<BracketsPair>()
 
@@ -270,11 +127,12 @@ class SyntaxTree(str: String = "") {
     private fun checkRepeatExpression(k: Int): Int {
         var i = k
         // {2,}
-        if ((i + 4 >= regStr.length) or (regStr[i + 1] == '}')) throw Exception("Syntax error")
+        if ((i + 4 >= regStr.length) or (regStr[i + 1] == '}') or (regStr[k - 1] == '(')) throw Exception("Syntax error")
         var lowNum = 0
         var highNum = 0
         while (regStr[i] != ',') {
             if (regStr[i].isDigit()) {
+                if (regStr[i] == '0') throw Exception("Syntax error")
                 lowNum *= 10
                 lowNum += regStr[i].digitToInt()
                 i++
@@ -508,7 +366,7 @@ class SyntaxTree(str: String = "") {
 
     fun printTree(root: Node?, space: Int) {
 
-        var tab = space + 1
+        val tab = space + 1
         var unaryNd: Node? = null
         var binaryNd: Pair<Node?, Node?> = Pair(null, null)
         if ((root !is OrNode) and (root !is CatNode)) unaryNd = printUnary(root, tab)
@@ -520,8 +378,40 @@ class SyntaxTree(str: String = "") {
             printTree(binaryNd.second, tab + 2)
         }
     }
-}
 
+    fun createNFA(): SyntaxTree {
+        val l = mutableListOf(0)
+        rootNode.createNFA(start = true, end = false, nameDigit = l)
+        return this
+    }
+
+    fun printNFA(node: Node? = null, nodeNFA: NFA? = null, tab: Int) {
+        val newTab = tab + 1
+        val space = " ".repeat(newTab)
+        var flag = false
+        if (node != null) if (node is SimpleGroup) {
+            printNFA(node = node.child, tab = newTab)
+            return
+        }
+        if (nodeNFA != null) {
+            var i = 0
+            println(space + nodeNFA.nodeName)
+            print(space + "Transitions: ")
+            nodeNFA.transitions.forEach { print("$it ") }
+            println()
+            println("${space}start: ${nodeNFA.start}, end: ${nodeNFA.end}")
+            for (each in autoNode) if (each == nodeNFA.nodeName) flag = true
+            autoNode.add(nodeNFA.nodeName)
+            while (i < nodeNFA.NFAchildren.size) {
+                if (!flag) {
+                    printNFA(nodeNFA = nodeNFA.NFAchildren[i], tab = newTab)
+                    i++
+                } else i++
+            }
+        } else printNFA(nodeNFA = node!!.startNode, tab = newTab)
+
+    }
+}
 
 fun <T> List<T>.getItemPositionByName(item: T): Int {
     this.forEachIndexed { index, it ->

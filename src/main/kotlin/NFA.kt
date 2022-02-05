@@ -2,7 +2,4 @@ class NFA(var start: Boolean = false, var end: Boolean = false, var nameDigit: I
     val nodeName = "Node $nameDigit"
     val transitions = mutableListOf<Char>()
     val NFAchildren = mutableListOf<NFA>()
-
-    var processed = false
-
 }
