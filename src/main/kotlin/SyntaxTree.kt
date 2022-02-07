@@ -1,3 +1,12 @@
+
+import guru.nidi.graphviz.attribute.Label
+import guru.nidi.graphviz.attribute.Style
+import guru.nidi.graphviz.engine.Format
+import guru.nidi.graphviz.engine.Graphviz
+import guru.nidi.graphviz.model.Factory
+import java.io.File
+import guru.nidi.graphviz.model.Node as NodeModel
+
 open class Node() {
     var startNode = NFA()
     var endNode = NFA()
@@ -11,17 +20,24 @@ open class Node() {
         return NFA(start = true, end = false, nameDigit = nameDigit[0])
     }
 
+    open fun clone(): Node {
+        return Node(c, startNode, endNode)
+    }
+
     constructor(ch: Char) : this() {
         c = ch
+    }
+
+    constructor(ch: Char, startNFA: NFA, endNFA: NFA) : this() {
+        c = ch
+        startNode = startNFA
+        endNode = endNFA
     }
 }
 
 open class UnaryOperator(var child: Node?, ch: Char = ' ') : Node(ch) {}
 
-open class BinaryOperator(leftChild: Node? = null, rightChild: Node? = null, ch: Char = ' ') : Node(ch) {
-    var left = leftChild
-    var right = rightChild
-}
+open class BinaryOperator(var left: Node? = null, var right: Node? = null, ch: Char = ' ') : Node(ch) {}
 
 class BracketsPair(val opBr: OpenBracket, var clBr: CloseBracket?) {
     fun setCloseBracket(closeBracket: CloseBracket) {
@@ -33,6 +49,16 @@ class OpenBracket() : Node('(') {}
 class CloseBracket() : Node(')') {}
 
 class ANode(ch: Char) : Node(ch) {
+
+    override fun clone(): ANode {
+        return ANode(c, startNode, endNode)
+    }
+
+    constructor(ch: Char, start: NFA, end: NFA) : this(ch) {
+        startNode = start
+        endNode = end
+    }
+
     override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
         startNode = NFA(start, end, nameDigit[0])
         nameDigit[0] = nameDigit[0] + 1
@@ -44,15 +70,41 @@ class ANode(ch: Char) : Node(ch) {
     }
 }
 
-class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {}
+class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {
+    override fun clone(): CaptureGroup {
+        return CaptureGroup(c, child, startNode, endNode, groupNumber)
+    }
+
+    constructor(ch: Char, child_: Node?, start: NFA, end: NFA, groupNumber_: Int) : this(child_) {
+        c = ch
+        startNode = start
+        endNode = end
+        groupNumber = groupNumber_
+    }
+}
 
 class SimpleGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {
+    override fun clone(): SimpleGroup {
+        return SimpleGroup(c, child, startNode, endNode, groupNumber)
+    }
+
+    constructor(ch: Char, child_: Node?, start: NFA, end: NFA, groupNumber_: Int) : this(child_) {
+        c = ch
+        startNode = start
+        endNode = end
+        groupNumber = groupNumber_
+    }
+
     override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
         return child!!.createNFA(start, end, nameDigit)
     }
 }
 
-class ENode : Node() {
+class ENode(ch: Char) : Node(ch) {
+    override fun clone(): ENode {
+        return ENode(c)
+    }
+
     override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
         return ANode('^').createNFA(start, end, nameDigit)
     }
@@ -60,10 +112,10 @@ class ENode : Node() {
 
 class SyntaxTree(str: String = "") {
     var rootNode: Node = Node()
-    private val nodes = mutableListOf<Node>()
+    private var nodes = mutableListOf<Node>()
     private val groups = mutableListOf<Node>()
     private val alphabet = mutableSetOf<Char>()
-    private val autoNode = mutableSetOf<String>()
+    private val nodesNames = mutableSetOf<String>()
     private val regStr = "($str)"
     private var brackets = mutableListOf<BracketsPair>()
 
@@ -93,7 +145,7 @@ class SyntaxTree(str: String = "") {
                     } else throw Exception("Syntax error")
                 }
                 // null substring
-                '^' -> nodes.add(ENode())
+                '^' -> nodes.add(ENode('^'))
                 // or
                 '|' -> {
                     if (i + 1 >= regStr.length) throw Exception("Syntax error")
@@ -239,6 +291,7 @@ class SyntaxTree(str: String = "") {
                     }
                     f = true
                     captureGroups.add(nodes[k] as CaptureGroup)
+                    nodes.removeAt(k)
                 }
                 j++
             }
@@ -246,8 +299,51 @@ class SyntaxTree(str: String = "") {
             //repeats
             while (j < end) {
                 if (nodes[j] is Repeats) {
-                    (nodes[j] as Repeats).child = nodes[j - 1]
-                    nodes.remove(nodes[j - 1])
+                    // (gr){1,} = (gr)+
+                    if (((nodes[j] as Repeats).lowBorder == 1) and ((nodes[j] as Repeats).highBorder == -1)) {
+                        nodes[j] = PlusNode(nodes[j - 1])
+                        nodes.removeAt(j - 1)
+                    } else if ((nodes[j] as Repeats).highBorder == -1) {
+                        // (gr){2,} = (gr)(gr)+     (gr){4,} = (gr)(gr)(gr)(gr)+
+                        val tmpListOfFirst = nodes.subList(0, j - 1).toMutableList()
+                        val tmpListOfLast = nodes.subList(j + 1, nodes.size).toMutableList()
+
+                        val low = (nodes[j] as Repeats).lowBorder
+                        val childNode = nodes[j - 1]
+
+                        var i = 0
+                        while (i < low - 1) {
+                            tmpListOfFirst.add(childNode.clone())
+                            end++
+                            i++
+                        }
+                        tmpListOfFirst.add(PlusNode(childNode.clone()))
+                        for (each in tmpListOfLast) tmpListOfFirst.add(each)
+                        nodes = tmpListOfFirst
+                    } else { // (gr){2,4} = (gr)(gr)(gr)?(gr)?
+
+                        val tmpListOfFirst = nodes.subList(0, j - 1).toMutableList()
+                        val tmpListOfLast = nodes.subList(j + 1, nodes.size).toMutableList()
+
+                        val low = (nodes[j] as Repeats).lowBorder
+                        val high = (nodes[j] as Repeats).highBorder
+                        val childNode = nodes[j - 1]
+
+                        var i = 0
+                        while (i < low) {
+                            tmpListOfFirst.add(childNode.clone())
+                            end++
+                            i++
+                        }
+                        for (i in low until high) {
+                            tmpListOfFirst.add(QuestionNode(childNode.clone()))
+                            end++
+                        }
+                        end--
+                        for (each in tmpListOfLast) tmpListOfFirst.add(each)
+                        nodes = tmpListOfFirst
+                    }
+
                     end--
                 }
                 j++
@@ -256,10 +352,12 @@ class SyntaxTree(str: String = "") {
             j = start + 1
             //+
             while (j < end) {
-                if (nodes[j] is PlusNode) {
-                    (nodes[j] as PlusNode).child = nodes[j - 1]
-                    nodes.remove(nodes[j - 1])
-                    end--
+                if ((nodes[j] is PlusNode) and (nodes[j - 1] !is OpenBracket)) {
+                    if ((nodes[j] as PlusNode).child == null) {
+                        (nodes[j] as PlusNode).child = nodes[j - 1]
+                        nodes.remove(nodes[j - 1])
+                        end--
+                    }
                 }
                 j++
             }
@@ -282,8 +380,8 @@ class SyntaxTree(str: String = "") {
             j = start + 1
             // concatenate ab
             while (j < end) {
-                if ((nodes[j] !is OrNode) and (nodes[j + 1] !is OrNode) and (nodes[j + 1] !is CloseBracket)) {
-                    nodes.set(j, CatNode(nodes[j], nodes[j + 1]))
+                if ((nodes[j] !is OrNode) and (nodes[j + 1] !is OrNode) and (nodes[j] !is CloseBracket) and (nodes[j + 1] !is CloseBracket) and (nodes[j] !is CaptureGroup)) {
+                    nodes[j] = CatNode(nodes[j], nodes[j + 1])
                     nodes.remove(nodes[j + 1])
                     end--
                     j--
@@ -305,18 +403,19 @@ class SyntaxTree(str: String = "") {
                 j++
             }
 
-            if (end - start == 2) {
-                val gr = if (f) {
-                    f = false
-                    val i = captureGroups.size - 1
-                    SimpleGroup(nodes[start + 1], captureGroups[i].groupNumber)
-                } else SimpleGroup(nodes[start + 1], groupsNum++)
-                groups.add(gr)
-                nodes[start] = gr
-                nodes.removeAt(start + 1) //node
-                nodes.removeAt(start + 1) //)
-                brackets.removeLast()
-            }
+
+            val gr = if (f) {
+                f = false
+                val i = captureGroups.size - 1
+                SimpleGroup(nodes[start + 1], captureGroups[i].groupNumber)
+            } else SimpleGroup(nodes[start + 1], groupsNum++)
+            groups.add(gr)
+            nodes[start] = gr
+            nodes.removeAt(start + 1) //node
+            nodes.removeAt(start + 1) //)
+            brackets.removeLast()
+
+
         }
         rootNode = nodes[0]
     }
@@ -343,6 +442,10 @@ class SyntaxTree(str: String = "") {
             }
             is SimpleGroup -> {
                 println("$space(group ${nd.groupNumber})")
+                return nd.child
+            }
+            is QuestionNode -> {
+                println("$space(${nd.c})")
                 return nd.child
             }
             else -> return null
@@ -385,8 +488,8 @@ class SyntaxTree(str: String = "") {
         return this
     }
 
-    fun printNFA(node: Node? = null, nodeNFA: NFA? = null, tab: Int) {
-        val newTab = tab + 1
+    fun printNFA(node: Node? = null, nodeNFA: NFA? = null, tab: Int, ndGraph: NodeModel = Factory.node("0")) {
+        val newTab = tab + 5
         val space = " ".repeat(newTab)
         var flag = false
         if (node != null) if (node is SimpleGroup) {
@@ -400,8 +503,8 @@ class SyntaxTree(str: String = "") {
             nodeNFA.transitions.forEach { print("$it ") }
             println()
             println("${space}start: ${nodeNFA.start}, end: ${nodeNFA.end}")
-            for (each in autoNode) if (each == nodeNFA.nodeName) flag = true
-            autoNode.add(nodeNFA.nodeName)
+            for (each in nodesNames) if (each == nodeNFA.nodeName) flag = true
+            nodesNames.add(nodeNFA.nodeName)
             while (i < nodeNFA.NFAchildren.size) {
                 if (!flag) {
                     printNFA(nodeNFA = nodeNFA.NFAchildren[i], tab = newTab)
@@ -411,6 +514,35 @@ class SyntaxTree(str: String = "") {
         } else printNFA(nodeNFA = node!!.startNode, tab = newTab)
 
     }
+
+    fun createNFAGraph(root: Node?) {
+
+        val main: NodeModel = Factory.node(this.rootNode.startNode.nodeName)
+        val execute: NodeModel = Factory.node("gowentgo")
+
+        val compare: NodeModel = Factory.node("compare")
+        val mkString: NodeModel = Factory.node("mkString")
+        val da: NodeModel = Factory.node("da")
+
+        val g = Factory.graph("test").directed().with(
+            main.link(
+                Factory.to(Factory.node("parse").link(execute)),
+                Factory.node("cleanup"),
+                Factory.to(da).with(
+                    Style.BOLD, Label.of("100 times")
+                ),
+                Factory.to(main).with(Label.of("dark"))
+            ),
+            execute.link(
+                Factory.graph().with(mkString, da),
+                Factory.to(compare).with(Label.of("k"))
+            ),
+            compare.link(main).with(Label.of("ef"))
+        )
+
+        Graphviz.fromGraph(g).width(900).render(Format.PNG).toFile(File("example/ex1.png"))
+    }
+
 }
 
 fun <T> List<T>.getItemPositionByName(item: T): Int {

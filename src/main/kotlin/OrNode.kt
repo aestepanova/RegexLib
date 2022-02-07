@@ -1,4 +1,14 @@
 class OrNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOperator(leftSymbols, rightSymbols, '|') {
+
+    override fun clone(): OrNode {
+        return OrNode(c, left, right, startNode, endNode)
+    }
+    constructor(ch: Char, leftchild_: Node?, rightChild_: Node?, start: NFA, end: NFA): this(leftchild_, rightChild_) {
+        c = ch
+        startNode = start
+        endNode = end
+    }
+
     override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
         startNode = NFA(start, end, nameDigit[0])
         nameDigit[0] = nameDigit[0] + 1
