@@ -1,4 +1,3 @@
-
 import guru.nidi.graphviz.attribute.Label
 import guru.nidi.graphviz.attribute.Style
 import guru.nidi.graphviz.engine.Format
@@ -70,7 +69,8 @@ class ANode(ch: Char) : Node(ch) {
     }
 }
 
-class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {
+open class Group(group: Node? = null) : UnaryOperator(group)
+class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : Group(group) {
     override fun clone(): CaptureGroup {
         return CaptureGroup(c, child, startNode, endNode, groupNumber)
     }
@@ -83,7 +83,7 @@ class CaptureGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperato
     }
 }
 
-class SimpleGroup(group: Node? = null, var groupNumber: Int = 0) : UnaryOperator(group) {
+class SimpleGroup(group: Node? = null, var groupNumber: Int = 0) : Group(group) {
     override fun clone(): SimpleGroup {
         return SimpleGroup(c, child, startNode, endNode, groupNumber)
     }
@@ -121,13 +121,10 @@ class SyntaxTree(str: String = "") {
 
     init {
         println(regStr)
-        build()
-    }
-
-    private fun build() {
         checkCaptures()
         createSyntaxTree()
     }
+
 
     private fun nodesScan() {
         var i = 0
@@ -292,6 +289,8 @@ class SyntaxTree(str: String = "") {
                     f = true
                     captureGroups.add(nodes[k] as CaptureGroup)
                     nodes.removeAt(k)
+                    // исправить класс нумерованного захвата, добавив детей вправо
+                    end--
                 }
                 j++
             }
@@ -320,8 +319,8 @@ class SyntaxTree(str: String = "") {
                         tmpListOfFirst.add(PlusNode(childNode.clone()))
                         for (each in tmpListOfLast) tmpListOfFirst.add(each)
                         nodes = tmpListOfFirst
-                    } else { // (gr){2,4} = (gr)(gr)(gr)?(gr)?
-
+                    } else {
+                        // (gr){2,4} = (gr)(gr)(gr)?(gr)?
                         val tmpListOfFirst = nodes.subList(0, j - 1).toMutableList()
                         val tmpListOfLast = nodes.subList(j + 1, nodes.size).toMutableList()
 
@@ -404,11 +403,14 @@ class SyntaxTree(str: String = "") {
             }
 
 
-            val gr = if (f) {
+
+            val gr: SimpleGroup
+            if (f){
                 f = false
                 val i = captureGroups.size - 1
-                SimpleGroup(nodes[start + 1], captureGroups[i].groupNumber)
-            } else SimpleGroup(nodes[start + 1], groupsNum++)
+                gr = SimpleGroup(nodes[start + 1], captureGroups[i].groupNumber)
+                captureGroups.removeAt(i)
+            } else gr = SimpleGroup(nodes[start + 1], groupsNum++)
             groups.add(gr)
             nodes[start] = gr
             nodes.removeAt(start + 1) //node

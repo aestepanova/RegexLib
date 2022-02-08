@@ -22,7 +22,7 @@ class PlusNode(symbols: Node? = null) : UnaryOperator(symbols, '+') {
 
         plusChild.endNode.NFAchildren.add(endNode)
         plusChild.endNode.transitions.add('@')
-        plusChild.endNode.transitions.add(plusChild.c)
+        plusChild.endNode.NFAchildren.add(startNode)
 
         return startNode
     }
