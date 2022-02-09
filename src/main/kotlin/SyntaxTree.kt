@@ -112,7 +112,7 @@ class ENode(ch: Char) : Node(ch) {
 
 class SyntaxTree(str: String = "") {
     var rootNode: Node = Node()
-    private var nodes = mutableListOf<Node>()
+    var nodes = mutableListOf<Node>()
     private val groups = mutableListOf<Node>()
     private val alphabet = mutableSetOf<Char>()
     private val nodesNames = mutableSetOf<String>()

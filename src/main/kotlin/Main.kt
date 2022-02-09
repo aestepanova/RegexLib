@@ -6,4 +6,5 @@ fun main(args: Array<String>) {
     tree.createNFA()
     tree.printNFA(node = tree.rootNode, tab = 0)
    // tree.createNFAGraph(tree.rootNode)
+    val op = DFA(tree.nodes)
 }
