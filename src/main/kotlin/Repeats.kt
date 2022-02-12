@@ -11,12 +11,12 @@ class Repeats(symbols: Node? = null, val lowBorder: Int, val highBorder: Int = -
         var flag = false
         var lastEndNode = endNode
         var newNFA: NFA
-        var childList = startNode.NFAchildren
+        var childList = startNode.nfaChildren
         if ((lowBorder == 1) and (highBorder == -1)) {
-            startNode.NFAchildren.add(PlusNode(repeatsChild).createNFA(start = false, end = false, nameDigit))
+            startNode.nfaChildren.add(PlusNode(repeatsChild).createNFA(start = false, end = false, nameDigit))
             nameDigit[0] = nameDigit[0] + 1
-            while (childList[0].NFAchildren.size != 0) childList = childList[0].NFAchildren
-            childList[0].NFAchildren.add(endNode)
+            while (childList[0].nfaChildren.size != 0) childList = childList[0].nfaChildren
+            childList[0].nfaChildren.add(endNode)
             childList[0].transitions.add('@')
 
             return startNode
@@ -86,48 +86,48 @@ class Repeats(symbols: Node? = null, val lowBorder: Int, val highBorder: Int = -
             if (!flag) {
                 newNFA = repeatsChild!!.createNFA(start = false, end = false, nameDigit = nameDigit)
                 nameDigit[0] = nameDigit[0] + 1
-                startNode.NFAchildren.add(newNFA)
-                while (childList[0].NFAchildren.size != 0) childList = childList[0].NFAchildren
-                childList[0].NFAchildren.add(endNode)
+                startNode.nfaChildren.add(newNFA)
+                while (childList[0].nfaChildren.size != 0) childList = childList[0].nfaChildren
+                childList[0].nfaChildren.add(endNode)
                 childList[0].transitions.add('@')
                 lastEndNode = childList[0]
                 flag = true
             } else {
-                lastEndNode.NFAchildren.remove(endNode)
+                lastEndNode.nfaChildren.remove(endNode)
                 newNFA = repeatsChild!!.createNFA(start = false, end = false, nameDigit = nameDigit)
-                lastEndNode.NFAchildren.add(newNFA)
+                lastEndNode.nfaChildren.add(newNFA)
                 nameDigit[0] = nameDigit[0] + 1
-                while (childList[0].NFAchildren.size != 0) childList = childList[0].NFAchildren
-                childList[0].NFAchildren.add(endNode)
+                while (childList[0].nfaChildren.size != 0) childList = childList[0].nfaChildren
+                childList[0].nfaChildren.add(endNode)
                 childList[0].transitions.add('@')
                 lastEndNode = childList[0]
             }
             i++
         }
         if (highBorder == -1) { //Clini
-            lastEndNode.NFAchildren.remove(endNode)
+            lastEndNode.nfaChildren.remove(endNode)
             newNFA = repeatsChild!!.createNFA(start = false, end = false, nameDigit = nameDigit)
-            lastEndNode.NFAchildren.add(newNFA)
+            lastEndNode.nfaChildren.add(newNFA)
             nameDigit[0] = nameDigit[0] + 1
-            while (childList[0].NFAchildren.size != 0) childList = childList[0].NFAchildren
-            childList[0].NFAchildren.add(endNode)
-            childList[0].NFAchildren.add(repeatsChild.startNode)
+            while (childList[0].nfaChildren.size != 0) childList = childList[0].nfaChildren
+            childList[0].nfaChildren.add(endNode)
+            childList[0].nfaChildren.add(repeatsChild.startNode)
             childList[0].transitions.add('@')
         } else {
             while (i < highBorder) {
-                lastEndNode.NFAchildren.remove(endNode)
+                lastEndNode.nfaChildren.remove(endNode)
                 newNFA = repeatsChild!!.createNFA(start = false, end = false, nameDigit = nameDigit)
                 nameDigit[0] = nameDigit[0] + 1
-                if (endNode !in newNFA.NFAchildren) newNFA.NFAchildren.add(endNode)
+                if (endNode !in newNFA.nfaChildren) newNFA.nfaChildren.add(endNode)
                 newNFA.transitions.add('@')
-                lastEndNode.NFAchildren.add(newNFA)
-                repeatsChild.endNode.NFAchildren.add(endNode)
+                lastEndNode.nfaChildren.add(newNFA)
+                repeatsChild.endNode.nfaChildren.add(endNode)
                 repeatsChild.endNode.transitions.add('@')
-                lastEndNode = newNFA.NFAchildren.last()
+                lastEndNode = newNFA.nfaChildren.last()
                 i++
             }
         }
-        childList[0].NFAchildren.removeLast()
+        childList[0].nfaChildren.removeLast()
 
         return startNode
     }

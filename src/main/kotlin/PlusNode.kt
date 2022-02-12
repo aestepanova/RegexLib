@@ -2,7 +2,8 @@ class PlusNode(symbols: Node? = null) : UnaryOperator(symbols, '+') {
     override fun clone(): PlusNode {
         return PlusNode(c, child, startNode, endNode)
     }
-    constructor(ch: Char, child_: Node?, start: NFA, end: NFA): this(child_) {
+
+    constructor(ch: Char, child_: Node?, start: NFA, end: NFA) : this(child_) {
         c = ch
         startNode = start
         endNode = end
@@ -17,12 +18,12 @@ class PlusNode(symbols: Node? = null) : UnaryOperator(symbols, '+') {
 
         var plusChild = child
         while (plusChild is SimpleGroup) plusChild = plusChild.child
-        startNode.NFAchildren.add(plusChild!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+        startNode.nfaChildren.add(plusChild!!.createNFA(start = false, end = false, nameDigit = nameDigit))
         nameDigit[0] = nameDigit[0] + 1
 
-        plusChild.endNode.NFAchildren.add(endNode)
+        plusChild.endNode.nfaChildren.add(endNode)
         plusChild.endNode.transitions.add('@')
-        plusChild.endNode.NFAchildren.add(startNode)
+        plusChild.endNode.nfaChildren.add(plusChild.startNode)
 
         return startNode
     }

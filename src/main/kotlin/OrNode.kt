@@ -16,28 +16,28 @@ class OrNode(leftSymbols: Node? = null, rightSymbols: Node? = null) : BinaryOper
         nameDigit[0] = nameDigit[0] + 1
         startNode.transitions.add('@')
         nameDigit[0] = nameDigit[0] + 1
-        startNode.NFAchildren.add(left!!.createNFA(start = false, end = false, nameDigit = nameDigit))
-        startNode.NFAchildren.add(right!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+        startNode.nfaChildren.add(left!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+        startNode.nfaChildren.add(right!!.createNFA(start = false, end = false, nameDigit = nameDigit))
 
         if ((left !is SimpleGroup) and (right !is SimpleGroup)) {
-            left!!.endNode.NFAchildren.add(endNode)
+            left!!.endNode.nfaChildren.add(endNode)
             left!!.endNode.transitions.add('@')
-            right!!.endNode.NFAchildren.add(endNode)
+            right!!.endNode.nfaChildren.add(endNode)
             right!!.endNode.transitions.add('@')
         } else if ((left !is SimpleGroup) and (right is SimpleGroup)) {
-            left!!.endNode.NFAchildren.add(endNode)
+            left!!.endNode.nfaChildren.add(endNode)
             left!!.endNode.transitions.add('@')
-            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (right as SimpleGroup).child!!.endNode.nfaChildren.add(endNode)
             (right as SimpleGroup).child!!.endNode.transitions.add('@')
         } else if ((left is SimpleGroup) and (right !is SimpleGroup)) {
-            (left as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (left as SimpleGroup).child!!.endNode.nfaChildren.add(endNode)
             (left as SimpleGroup).child!!.endNode.transitions.add('@')
-            right!!.endNode.NFAchildren.add(endNode)
+            right!!.endNode.nfaChildren.add(endNode)
             right!!.endNode.transitions.add('@')
         } else {
-            (left as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (left as SimpleGroup).child!!.endNode.nfaChildren.add(endNode)
             (left as SimpleGroup).child!!.endNode.transitions.add('@')
-            (right as SimpleGroup).child!!.endNode.NFAchildren.add(endNode)
+            (right as SimpleGroup).child!!.endNode.nfaChildren.add(endNode)
             (right as SimpleGroup).child!!.endNode.transitions.add('@')
         }
         return startNode

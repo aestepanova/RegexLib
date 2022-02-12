@@ -63,7 +63,7 @@ class ANode(ch: Char) : Node(ch) {
         nameDigit[0] = nameDigit[0] + 1
         endNode = NFA(end, start, nameDigit[0])
         startNode.transitions.add(c)
-        startNode.NFAchildren.add(endNode)
+        startNode.nfaChildren.add(endNode)
         nameDigit[0] = nameDigit[0] + 1
         return startNode
     }
@@ -106,7 +106,13 @@ class ENode(ch: Char) : Node(ch) {
     }
 
     override fun createNFA(start: Boolean, end: Boolean, nameDigit: MutableList<Int>): NFA {
-        return ANode('^').createNFA(start, end, nameDigit)
+        startNode = NFA(start, end, nameDigit[0])
+        nameDigit[0] = nameDigit[0] + 1
+        endNode = NFA(end, start, nameDigit[0])
+        startNode.transitions.add('@')
+        startNode.nfaChildren.add(endNode)
+        nameDigit[0] = nameDigit[0] + 1
+        return startNode
     }
 }
 
@@ -114,7 +120,7 @@ class SyntaxTree(str: String = "") {
     var rootNode: Node = Node()
     var nodes = mutableListOf<Node>()
     private val groups = mutableListOf<Node>()
-    private val alphabet = mutableSetOf<Char>()
+    val language = mutableSetOf<Char>()
     private val nodesNames = mutableSetOf<String>()
     private val regStr = "($str)"
     private var brackets = mutableListOf<BracketsPair>()
@@ -137,7 +143,7 @@ class SyntaxTree(str: String = "") {
                 '#' -> {
                     if (i + 1 < regStr.length) {
                         i++
-                        alphabet.add(regStr[i])
+                        language.add(regStr[i])
                         nodes.add(ANode(regStr[i]))
                     } else throw Exception("Syntax error")
                 }
@@ -159,6 +165,8 @@ class SyntaxTree(str: String = "") {
                 // positive circuit
                 '+' -> nodes.add(PlusNode())
 
+                '?' -> nodes.add(QuestionNode())
+
                 // repeat expression in diapason {2,} or {2,987}
                 '{' -> i = checkRepeatExpression(i)
 
@@ -166,7 +174,7 @@ class SyntaxTree(str: String = "") {
                 ':' -> nodes.add(CaptureGroup())
                 else -> {
                     nodes.add(ANode(ch))
-                    alphabet.add(ch)
+                    language.add(ch)
                 }
             }
             i++
@@ -213,6 +221,8 @@ class SyntaxTree(str: String = "") {
     }
 
     private fun checkCaptures() {
+
+        if (regStr == "(^)") throw Exception("Wrong syntax. Empty string.")
 
         val l = regStr.length
 
@@ -289,7 +299,6 @@ class SyntaxTree(str: String = "") {
                     f = true
                     captureGroups.add(nodes[k] as CaptureGroup)
                     nodes.removeAt(k)
-                    // исправить класс нумерованного захвата, добавив детей вправо
                     end--
                 }
                 j++
@@ -362,6 +371,19 @@ class SyntaxTree(str: String = "") {
             }
 
             j = start + 1
+            //?
+            while (j < end) {
+                if ((nodes[j] is QuestionNode) and (nodes[j - 1] !is OpenBracket)) {
+                    if ((nodes[j] as QuestionNode).child == null) {
+                        (nodes[j] as QuestionNode).child = nodes[j - 1]
+                        nodes.remove(nodes[j - 1])
+                        end--
+                    }
+                }
+                j++
+            }
+
+            j = start + 1
             // concatenate a.b
             while (j < end) {
                 if (nodes[j] is CatNode) {
@@ -401,8 +423,6 @@ class SyntaxTree(str: String = "") {
                 }
                 j++
             }
-
-
 
             val gr: SimpleGroup
             if (f){
@@ -507,9 +527,9 @@ class SyntaxTree(str: String = "") {
             println("${space}start: ${nodeNFA.start}, end: ${nodeNFA.end}")
             for (each in nodesNames) if (each == nodeNFA.nodeName) flag = true
             nodesNames.add(nodeNFA.nodeName)
-            while (i < nodeNFA.NFAchildren.size) {
+            while (i < nodeNFA.nfaChildren.size) {
                 if (!flag) {
-                    printNFA(nodeNFA = nodeNFA.NFAchildren[i], tab = newTab)
+                    printNFA(nodeNFA = nodeNFA.nfaChildren[i], tab = newTab)
                     i++
                 } else i++
             }

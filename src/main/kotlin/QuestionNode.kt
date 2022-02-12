@@ -1,4 +1,4 @@
-class QuestionNode(child_: Node?) : UnaryOperator(child_, '?') {
+class QuestionNode(child_: Node? = null) : UnaryOperator(child_, '?') {
     override fun clone(): QuestionNode {
         return QuestionNode(c, child, startNode, endNode)
     }
@@ -14,15 +14,20 @@ class QuestionNode(child_: Node?) : UnaryOperator(child_, '?') {
         startNode = NFA(start, end, nameDigit[0])
         nameDigit[0] = nameDigit[0] + 1
         startNode.transitions.add('@')
+
         endNode = NFA(end, start, nameDigit[0])
         nameDigit[0] = nameDigit[0] + 1
-        startNode.NFAchildren.add(endNode)
 
-        startNode.NFAchildren.add(child!!.createNFA(start = false, end = false, nameDigit = nameDigit))
+        val emptyNode = NFA(false, false, nameDigit[0])
         nameDigit[0] = nameDigit[0] + 1
-        startNode.transitions.add(child!!.c)
+        emptyNode.nfaChildren.add(endNode)
+        emptyNode.transitions.add('@')
+        startNode.nfaChildren.add(emptyNode)
 
-        child!!.endNode.NFAchildren.add(endNode)
+        emptyNode.nfaChildren.add(child!!.createNFA(start = true, end = false, nameDigit = nameDigit))
+        nameDigit[0] = nameDigit[0] + 1
+
+        child!!.endNode.nfaChildren.add(endNode)
         child!!.endNode.transitions.add('@')
 
         return startNode
